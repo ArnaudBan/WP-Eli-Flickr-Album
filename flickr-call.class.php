@@ -85,39 +85,91 @@ Class Eli_Flickr_Call{
 
     function flickr_get_my_album(){
 
-        $my_albums = false;
+        $my_albums = get_transient( 'eli_flickr_get_my_album' );
 
-        $url = 'https://api.flickr.com/services/rest';
+        if( ! $my_albums ){
 
-        $parameters = array(
-                'oauth_consumer_key'    => $this->consumer_key,
-                'oauth_nonce'           => uniqid(),
-                'oauth_signature_method'=> 'HMAC-SHA1',
-                'oauth_token'           => $this->oauth_urlencode( $this->oauth_token ),
-                'oauth_timestamp'       => time(),
-                'oauth_version'         => '1.0',
-                'nojsoncallback'        => '1',
-                'format'                => 'json',
-                'method'                => 'flickr.photosets.getList',
-            );
+            $url = 'https://api.flickr.com/services/rest';
 
-        $signature = $this->signParams( $url, $parameters );
+            $parameters = array(
+                    'oauth_consumer_key'    => $this->consumer_key,
+                    'oauth_nonce'           => uniqid(),
+                    'oauth_signature_method'=> 'HMAC-SHA1',
+                    'oauth_token'           => $this->oauth_urlencode( $this->oauth_token ),
+                    'oauth_timestamp'       => time(),
+                    'oauth_version'         => '1.0',
+                    'nojsoncallback'        => '1',
+                    'format'                => 'json',
+                    'method'                => 'flickr.photosets.getList',
+                );
 
-        $parameters['oauth_signature'] = $this->oauth_urlencode( $signature );
+            $signature = $this->signParams( $url, $parameters );
 
-        $url_request_token = add_query_arg( $parameters, $url );
+            $parameters['oauth_signature'] = $this->oauth_urlencode( $signature );
 
-        $response = wp_remote_get( $url_request_token );
+            $url_request_token = add_query_arg( $parameters, $url );
 
-        if( ! is_wp_error( $response ) ){
+            $response = wp_remote_get( $url_request_token );
 
-            $response_body = wp_remote_retrieve_body( $response );
+            if( ! is_wp_error( $response ) ){
 
-            $my_albums = json_decode($response_body);
+                $response_body = wp_remote_retrieve_body( $response );
 
+                $my_albums = json_decode($response_body);
+
+                set_transient( 'eli_flickr_get_my_album', $my_albums, HOUR_IN_SECONDS );
+
+            }
         }
 
         return $my_albums;
+
+    }
+
+    function flickr_get_album_photos( $photoset_id ){
+
+        $photos = get_transient( 'eli_flickr_get_album_photos_' . $photoset_id );
+
+        if( ! $photos ){
+
+            $url = 'https://api.flickr.com/services/rest';
+
+            $parameters = array(
+                    'oauth_consumer_key'    => $this->consumer_key,
+                    'oauth_nonce'           => uniqid(),
+                    'oauth_signature_method'=> 'HMAC-SHA1',
+                    'oauth_token'           => $this->oauth_urlencode( $this->oauth_token ),
+                    'oauth_timestamp'       => time(),
+                    'oauth_version'         => '1.0',
+                    'nojsoncallback'        => '1',
+                    'format'                => 'json',
+                    'method'                => 'flickr.photosets.getPhotos',
+                    'photoset_id'           => $photoset_id,
+                    'privacy_filter'        => 4,
+                    //'per_page'              => 20,
+                    //'page'                  => 1,
+                );
+
+            $signature = $this->signParams( $url, $parameters );
+
+            $parameters['oauth_signature'] = $this->oauth_urlencode( $signature );
+
+            $url_request_token = add_query_arg( $parameters, $url );
+
+            $response = wp_remote_get( $url_request_token );
+
+            if( ! is_wp_error( $response ) ){
+
+                $response_body = wp_remote_retrieve_body( $response );
+
+                $photos = json_decode( $response_body );
+
+                set_transient( 'eli_flickr_get_album_photos_' . $photoset_id, $photos, HOUR_IN_SECONDS );
+
+            }
+        }
+
+        return $photos;
 
     }
 

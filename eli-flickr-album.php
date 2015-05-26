@@ -19,6 +19,48 @@ Class Eli_Flickr_Album{
 
         add_action('admin_menu', array( $this, 'admin_menu_action') );
         add_action('admin_init', array( $this, 'admin_init_action') );
+        add_action('init', array( $this, 'init_action') );
+        add_action('save_post', array( $this, 'save_post') );
+        add_filter( 'the_content', array( $this, 'eli_flickr_add_photo_to_content') );
+    }
+
+    function init_action(){
+
+        // Creat CPT Flickr Album
+        $labels = array(
+            'name'               => _x( 'Flickr Albums', 'post type general name', 'eli-flickr-album' ),
+            'singular_name'      => _x( 'Flickr Album', 'post type singular name', 'eli-flickr-album' ),
+            'menu_name'          => _x( 'Flickr Albums', 'admin menu', 'eli-flickr-album' ),
+            'name_admin_bar'     => _x( 'Flickr Album', 'add new on admin bar', 'eli-flickr-album' ),
+            'add_new'            => _x( 'Add New', 'Flickr Album', 'eli-flickr-album' ),
+            'add_new_item'       => __( 'Add New Flickr Album', 'eli-flickr-album' ),
+            'new_item'           => __( 'New Flickr Album', 'eli-flickr-album' ),
+            'edit_item'          => __( 'Edit Flickr Album', 'eli-flickr-album' ),
+            'view_item'          => __( 'View Flickr Album', 'eli-flickr-album' ),
+            'all_items'          => __( 'All Flickr Albums', 'eli-flickr-album' ),
+            'search_items'       => __( 'Search Flickr Albums', 'eli-flickr-album' ),
+            'parent_item_colon'  => __( 'Parent Flickr Albums:', 'eli-flickr-album' ),
+            'not_found'          => __( 'No Flickr Albums found.', 'eli-flickr-album' ),
+            'not_found_in_trash' => __( 'No Flickr Albums found in Trash.', 'eli-flickr-album' )
+        );
+
+        $args = array(
+            'labels'             => $labels,
+            'public'             => true,
+            'publicly_queryable' => true,
+            'show_ui'            => true,
+            'show_in_menu'       => true,
+            'query_var'          => true,
+            'menu_icon'          => 'dashicons-images-alt',
+            'register_meta_box_cb'  => array( $this, 'add_flickr_album_metabox' ),
+            'rewrite'            => array( 'slug' => __('album', 'eli-flickr-album' ) ),
+            'capability_type'    => 'post',
+            'has_archive'        => true,
+            'hierarchical'       => false,
+            'supports'           => array( 'title', 'editor', 'author', 'thumbnail', 'excerpt', 'comments' )
+        );
+
+        register_post_type( 'flickr-album', $args );
     }
 
     function admin_menu_action(){
@@ -66,6 +108,7 @@ Class Eli_Flickr_Album{
         add_settings_field('eli_app_authorize', 'Flickr Authorize', array( $this, 'eli_option_text_flickr_authorize' ), 'eli_options_page', 'eli_flickr_connection_section' );
 
     }
+
 
     function eli_flickr_connection_section_text(){
         echo '';
@@ -144,6 +187,71 @@ Class Eli_Flickr_Album{
         ?>
         <a class="<?php echo $classes; ?>" href="<?php echo $href; ?>"><?php _e('Authorize your application', 'eli-flickr-album'); ?></a>
         <?php
+    }
+
+    function add_flickr_album_metabox(){
+
+        add_meta_box( 'eli-flickr-album', __('Flickr Album', 'eli-flickr-album'), array( $this, 'flickr_album_metabox_content'), 'flickr-album', 'side', 'default' );
+    }
+
+    function flickr_album_metabox_content( $post ){
+
+        $album_id = get_post_meta( $post->ID , 'flickr_album_id', true );
+
+        $flickr_call = new Eli_Flickr_Call();
+        $my_albums = $flickr_call->flickr_get_my_album();
+
+        if( $my_albums->stat == 'ok' ){
+
+            wp_nonce_field( 'flickr_album_metabox_nonce', 'flickr_album_metabox_nonce_' . $post->ID );
+
+            echo '<select name="flickr_album_id">';
+            foreach ($my_albums->photosets->photoset as $album) {
+
+                echo "<option value='{$album->id}' ". selected( $album_id, $album->id, false ).">{$album->title->_content}</option>";
+            }
+            echo '</select>';
+        }
+
+    }
+
+    function save_post( $post_id ){
+
+        if( check_admin_referer( 'flickr_album_metabox_nonce', 'flickr_album_metabox_nonce_' . $post_id ) &&
+            current_user_can( 'edit_post', $post_id ) ){
+
+            $album_id = isset( $_POST['flickr_album_id'] ) ? sanitize_text_field( $_POST['flickr_album_id'] ) : '';
+
+            update_post_meta( $post_id, 'flickr_album_id', $album_id );
+        }
+
+    }
+
+    function eli_flickr_add_photo_to_content( $content ){
+        if( is_singular( 'flickr-album' ) ){
+
+            $album_id = get_post_meta( get_the_ID() , 'flickr_album_id', true );
+
+            $flickr_call = new Eli_Flickr_Call();
+            $photos = $flickr_call->flickr_get_album_photos( $album_id );
+
+            $content .= "<p>total : {$photos->photoset->total}</p>";
+            $content .= "<div class='eli-flickr-album-wrapper'>";
+
+            foreach ($photos->photoset->photo as $photo) {
+                $photo_url = $this->get_flikr_photo_url( $photo->id, $photo->secret, $photo->server, $photo->farm  );
+
+                $content .= "<img src='$photo_url'/>";
+            }
+
+            $content .= "</div>";
+        }
+
+        return $content;
+    }
+
+    private function get_flikr_photo_url( $photo_id, $secret_id, $server_id, $farm_id, $size = 't' ){
+        return "https://farm$farm_id.staticflickr.com/$server_id/{$photo_id}_{$secret_id}_{$size}.jpg";
     }
 
 }
