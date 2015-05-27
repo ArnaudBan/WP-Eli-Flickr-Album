@@ -21,6 +21,8 @@ Class Eli_Flickr_Album{
         add_action('admin_init', array( $this, 'admin_init_action') );
         add_action('init', array( $this, 'init_action') );
         add_action('save_post', array( $this, 'save_post') );
+        add_action('wp_enqueue_scripts', array( $this, 'wp_enqueue_scripts') );
+        add_action('wp_head', array( $this, 'wp_head') );
         add_filter( 'the_content', array( $this, 'eli_flickr_add_photo_to_content') );
     }
 
@@ -240,8 +242,11 @@ Class Eli_Flickr_Album{
 
             foreach ($photos->photoset->photo as $photo) {
                 $photo_url = $this->get_flikr_photo_url( $photo->id, $photo->secret, $photo->server, $photo->farm  );
+                $photo_url_large = $this->get_flikr_photo_url( $photo->id, $photo->secret, $photo->server, $photo->farm, 'b'  );
 
-                $content .= "<img src='$photo_url'/>";
+                $content .= "<a href='$photo_url_large' class='fancybox' rel='gallery'>";
+                $content .= "<img src='$photo_url' width='75' height='75' style='display:inline;'/>";
+                $content .= "</a>";
             }
 
             $content .= "</div>";
@@ -250,10 +255,32 @@ Class Eli_Flickr_Album{
         return $content;
     }
 
-    private function get_flikr_photo_url( $photo_id, $secret_id, $server_id, $farm_id, $size = 't' ){
+    private function get_flikr_photo_url( $photo_id, $secret_id, $server_id, $farm_id, $size = 's' ){
         return "https://farm$farm_id.staticflickr.com/$server_id/{$photo_id}_{$secret_id}_{$size}.jpg";
     }
 
+    function wp_enqueue_scripts(){
+        if( is_singular( 'flickr-album' ) ){
+
+            wp_enqueue_script( 'eli-fancybox-js', plugins_url( 'fancyBox/source/jquery.fancybox.js', __FILE__ ), array('jquery'), '2.1.5', true );
+
+            wp_enqueue_style( 'eli-fancybox-css', plugins_url( 'fancyBox/source/jquery.fancybox.css', __FILE__ ), array(), '2.1.5', $media = 'all' );
+
+        }
+    }
+
+    function wp_head(){
+        ?>
+        <script>
+            jQuery(document).ready(function() {
+                jQuery('.fancybox').fancybox({
+                    prevEffect      : 'none',
+                    nextEffect      : 'none',
+                });
+            });
+        </script>
+        <?php
+    }
 }
 
 /* Initialise outselves */
