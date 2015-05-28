@@ -234,10 +234,15 @@ Class Eli_Flickr_Album{
 
             $album_id = get_post_meta( get_the_ID() , 'flickr_album_id', true );
 
-            $flickr_call = new Eli_Flickr_Call();
-            $photos = $flickr_call->flickr_get_album_photos( $album_id );
+            $current = isset( $_GET['album-page'] ) ? intval( $_GET['album-page']) : 1;
+            $per_page = 100;
 
-            $content .= "<p>total : {$photos->photoset->total}</p>";
+            $flickr_call = new Eli_Flickr_Call();
+            $photos = $flickr_call->flickr_get_album_photos( $album_id, $current, $per_page );
+
+            $total = $photos->photoset->total;
+            $total_page = ceil( $total / $per_page );
+
             $content .= "<div class='eli-flickr-album-wrapper'>";
 
             foreach ($photos->photoset->photo as $photo) {
@@ -248,6 +253,19 @@ Class Eli_Flickr_Album{
                 $content .= "<img src='$photo_url' width='75' height='75' style='display:inline;'/>";
                 $content .= "</a>";
             }
+
+
+            $content .= _navigation_markup(
+                paginate_links(
+                    array(
+                        'total'             => $total_page,
+                        'current'           => $current,
+                        'format'            => '?album-page=%#%',
+                        )
+                    ),
+                'pagination',
+                __('Album Navigation', 'eli-flickr-album')
+                );
 
             $content .= "</div>";
         }
